@@ -10,20 +10,21 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 st.set_page_config(page_title="Voice Chatbot Demo", page_icon="🎤")
 st.title("🎤 Voice Chatbot Demo")
-st.markdown("Upload or record your voice message. The bot will understand and respond with a natural-sounding voice.")
+st.markdown("🎙️ Record your voice message. The assistant will understand and respond with a natural-sounding voice.")
 
-audio_file = st.file_uploader("Upload your voice (MP3/WAV)", type=["mp3", "wav"])
+# Use Streamlit's built-in voice input (audio recording)
+audio_file = st.voice_input("Press to record your voice (French/English)")
 
 if audio_file:
-    st.audio(audio_file, format='audio/mp3')
-    st.info("Transcribing your voice...")
+    st.audio(audio_file, format="audio/wav")
+    st.info("🔄 Transcribing your voice...")
 
     # Save temporary audio file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_audio:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
         temp_audio.write(audio_file.read())
         temp_path = temp_audio.name
 
-    # Transcription using Whisper (auto-detects language)
+    # Transcribe using Whisper (auto-detects language)
     with open(temp_path, "rb") as af:
         transcript_response = openai.audio.transcriptions.create(
             model="whisper-1",
@@ -32,15 +33,14 @@ if audio_file:
         )
     transcript = transcript_response.strip()
 
-    st.success("Transcription complete!")
+    st.success("✅ Transcription complete!")
     st.subheader("📝 Transcript")
     st.write(transcript)
 
-    # GPT-4 reply (language auto-handled by GPT)
-    st.info("Generating reply with GPT-4o...")
-
+    # GPT-4o reply generation
+    st.info("🤖 Generating reply using GPT-4o...")
     response = openai.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=[
             {
                 "role": "system",
@@ -58,11 +58,11 @@ if audio_file:
     )
 
     reply = response.choices[0].message.content.strip()
-    st.success("Response generated!")
+    st.success("✅ Response generated!")
     st.subheader("💬 Chatbot Reply")
     st.write(reply)
 
-    # Detect action
+    # Detect intent
     st.subheader("📍 Detected Action")
     lowered = transcript.lower()
     if any(word in lowered for word in ["appointment", "rendez-vous", "meeting", "book", "réserver"]):
@@ -72,8 +72,8 @@ if audio_file:
     else:
         st.markdown("📝 **Intent: General Info / FAQ**")
 
-    # Convert reply to speech
-    st.info("Converting reply to voice...")
+    # Convert GPT reply to speech
+    st.info("🔊 Converting reply to voice...")
     tts_response = openai.audio.speech.create(
         model="tts-1",
         voice="nova",
@@ -86,10 +86,10 @@ if audio_file:
 
     st.audio(audio_output_path, format="audio/mp3")
 
-    # Clean up temp files
+    # Clean up
     try:
         os.remove(temp_path)
     except:
         pass
 
-    st.success("✅ Voice reply ready!")
+    st.success("🎉 Voice reply ready!")

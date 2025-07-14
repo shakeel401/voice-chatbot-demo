@@ -3,6 +3,7 @@ import tempfile
 import os
 from dotenv import load_dotenv
 import openai
+from openai import OpenAIError, RateLimitError, AuthenticationError, APIError
 
 # Load API key securely from .env
 load_dotenv()
@@ -16,7 +17,6 @@ st.markdown("🎙️ Record your voice message. The assistant will understand an
 audio_file = st.audio_input("Press to record your voice (French/English)")
 
 if audio_file:
-    st.audio(audio_file, format="audio/wav")
     st.info("🔄 Transcribing your voice...")
 
     # Save temporary audio file
@@ -24,45 +24,60 @@ if audio_file:
         temp_audio.write(audio_file.read())
         temp_path = temp_audio.name
 
-    # Transcribe using Whisper (auto-detects language)
-    with open(temp_path, "rb") as af:
-        transcript_response = openai.audio.transcriptions.create(
-            model="whisper-1",
-            file=af,
-            response_format="text"
-        )
-    transcript = transcript_response.strip()
+    # --- Transcription ---
+    try:
+        with open(temp_path, "rb") as af:
+            transcript_response = openai.audio.transcriptions.create(
+                model="whisper-1",
+                file=af,
+                response_format="text"
+            )
+        transcript = transcript_response.strip()
+        st.success("✅ Transcription complete!")
+        st.subheader("📝 Transcript")
+        st.write(transcript)
+    except RateLimitError:
+        st.error("🚫 Too many requests. Please wait a moment and try again.")
+        st.stop()
+    except AuthenticationError:
+        st.error("🔑 Invalid API key. Please check your credentials.")
+        st.stop()
+    except APIError as e:
+        st.error(f"❌ OpenAI API error: {str(e)}")
+        st.stop()
+    except Exception as e:
+        st.error(f"❗ An unexpected error occurred during transcription: {str(e)}")
+        st.stop()
 
-    st.success("✅ Transcription complete!")
-    st.subheader("📝 Transcript")
-    st.write(transcript)
-
-    # GPT-4o reply generation
+    # --- GPT-4o reply ---
     st.info("🤖 Generating reply using GPT-4o...")
-    response = openai.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a polite and helpful virtual phone receptionist. "
-                    "Understand the user query, and respond briefly in the same language they spoke."
-                )
-            },
-            {
-                "role": "user",
-                "content": transcript
-            }
-        ],
-        max_tokens=200
-    )
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a polite and helpful virtual phone receptionist. "
+                        "Understand the user query, and respond briefly in the same language they spoke."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": transcript
+                }
+            ],
+            max_tokens=200
+        )
+        reply = response.choices[0].message.content.strip()
+        st.success("✅ Response generated!")
+        st.subheader("💬 Chatbot Reply")
+        st.write(reply)
+    except Exception as e:
+        st.error(f"❗ Failed to generate reply: {str(e)}")
+        st.stop()
 
-    reply = response.choices[0].message.content.strip()
-    st.success("✅ Response generated!")
-    st.subheader("💬 Chatbot Reply")
-    st.write(reply)
-
-    # Detect intent
+    # --- Intent Detection ---
     st.subheader("📍 Detected Action")
     lowered = transcript.lower()
     if any(word in lowered for word in ["appointment", "rendez-vous", "meeting", "book", "réserver"]):
@@ -72,24 +87,27 @@ if audio_file:
     else:
         st.markdown("📝 **Intent: General Info / FAQ**")
 
-    # Convert GPT reply to speech
+    # --- TTS Output ---
     st.info("🔊 Converting reply to voice...")
-    tts_response = openai.audio.speech.create(
-        model="tts-1",
-        voice="nova",
-        input=reply
-    )
+    try:
+        tts_response = openai.audio.speech.create(
+            model="tts-1",
+            voice="nova",
+            input=reply
+        )
 
-    audio_output_path = os.path.join(tempfile.gettempdir(), "response.mp3")
-    with open(audio_output_path, "wb") as f:
-        f.write(tts_response.content)
+        audio_output_path = os.path.join(tempfile.gettempdir(), "response.mp3")
+        with open(audio_output_path, "wb") as f:
+            f.write(tts_response.content)
 
-    st.audio(audio_output_path, format="audio/mp3")
+        st.audio(audio_output_path, format="audio/mp3",autoplay=True)
+        st.success("🎉 Voice reply ready!")
 
-    # Clean up
+    except Exception as e:
+        st.error(f"❗ Text-to-speech conversion failed: {str(e)}")
+
+    # --- Cleanup ---
     try:
         os.remove(temp_path)
     except:
         pass
-
-    st.success("🎉 Voice reply ready!")

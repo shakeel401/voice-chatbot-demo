@@ -53,7 +53,7 @@ if audio_file:
     st.info("🤖 Generating reply using GPT-4o...")
     try:
         response = openai.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",

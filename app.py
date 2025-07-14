@@ -13,7 +13,7 @@ st.title("🎤 Voice Chatbot Demo")
 st.markdown("🎙️ Record your voice message. The assistant will understand and respond with a natural-sounding voice.")
 
 # Use Streamlit's built-in voice input (audio recording)
-audio_file = st.voice_input("Press to record your voice (French/English)")
+audio_file = st.audio_input("Press to record your voice (French/English)")
 
 if audio_file:
     st.audio(audio_file, format="audio/wav")
